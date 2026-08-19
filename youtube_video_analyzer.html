@@ -1,0 +1,1500 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>YT Scope · 유튜브 영상 분석기</title>
+  <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
+  <style>
+    :root {
+      --primary: #ff0000;
+      --primary-dark: #cc0000;
+      --bg: #f0f2f5;
+      --card: #ffffff;
+      --text: #1a1a1a;
+      --text-secondary: #5f6368;
+      --border: #dadce0;
+      --success: #0d904f;
+      --danger: #d93025;
+      --warning: #f9ab00;
+      --purple: #6f42c1;
+      --hover: #f8f9fa;
+      --real: #0b57d0;
+      --est: #5f6368;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Noto Sans KR", sans-serif;
+      background: var(--bg); color: var(--text); line-height: 1.5; padding: 12px; min-height: 100vh;
+    }
+    .container { max-width: 1600px; margin: 0 auto; }
+    header {
+      background: var(--card); border-radius: 12px; padding: 16px 20px; margin-bottom: 14px;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.06); border: 1px solid var(--border);
+    }
+    h1 { font-size: 1.35rem; font-weight: 700; display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
+    h1 svg { width: 26px; height: 26px; fill: var(--primary); }
+    .api-section { display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-end; }
+    .form-group { display: flex; flex-direction: column; gap: 4px; flex: 1; min-width: 140px; }
+    label { font-size: 0.78rem; font-weight: 600; color: var(--text-secondary); }
+    input[type="text"], input[type="password"], input[type="number"], select {
+      padding: 8px 12px; border: 1px solid var(--border); border-radius: 8px; font-size: 0.9rem; background: #fff; width: 100%;
+    }
+    input:focus, select:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 3px rgba(255,0,0,0.12); }
+    .btn {
+      padding: 8px 16px; border: none; border-radius: 8px; font-size: 0.9rem; font-weight: 600; cursor: pointer;
+      display: inline-flex; align-items: center; justify-content: center; gap: 6px; white-space: nowrap;
+      transition: background 0.15s, transform 0.1s;
+    }
+    .btn:active { transform: scale(0.98); }
+    .btn:disabled { opacity: 0.55; cursor: not-allowed; }
+    .btn-primary { background: var(--primary); color: #fff; }
+    .btn-primary:hover:not(:disabled) { background: var(--primary-dark); }
+    .btn-secondary { background: #e8eaed; color: var(--text); }
+    .btn-secondary:hover:not(:disabled) { background: #dadce0; }
+    .btn-success { background: var(--success); color: #fff; }
+    .btn-success:hover:not(:disabled) { background: #0b7a42; }
+    .btn-outline { background: transparent; border: 1px solid var(--border); color: var(--text); }
+    .btn-outline:hover:not(:disabled) { background: var(--hover); }
+    .btn-sm { padding: 5px 10px; font-size: 0.78rem; }
+    .btn-analyze {
+      background: var(--purple); color: #fff; padding: 4px 8px; font-size: 0.72rem;
+      border-radius: 6px; border: none; cursor: pointer; font-weight: 600; white-space: nowrap;
+    }
+    .btn-analyze:hover { background: #5a32a3; }
+    .mode-tabs {
+      display: flex; gap: 6px; margin-bottom: 14px; background: #e8eaed; padding: 4px;
+      border-radius: 10px; width: fit-content;
+    }
+    .mode-tab {
+      padding: 8px 18px; border-radius: 8px; border: none; background: transparent;
+      font-weight: 600; font-size: 0.9rem; cursor: pointer; color: var(--text-secondary);
+    }
+    .mode-tab.active { background: #fff; color: var(--text); box-shadow: 0 1px 3px rgba(0,0,0,0.12); }
+    .controls {
+      background: var(--card); border-radius: 12px; padding: 14px 16px; margin-bottom: 14px;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.06); border: 1px solid var(--border);
+    }
+    .controls-row { display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-end; margin-bottom: 10px; }
+    .controls-row:last-child { margin-bottom: 0; }
+    .note, .warn { font-size: 0.78rem; color: var(--text-secondary); margin-top: 8px; line-height: 1.45; }
+    .warn { color: #b06000; background: #fef7e0; padding: 8px 12px; border-radius: 8px; border: 1px solid #fde293; }
+    .note a { color: var(--primary); text-decoration: none; }
+    .status { margin-bottom: 12px; padding: 10px 14px; border-radius: 8px; font-size: 0.88rem; display: none; }
+    .status.error { background: #fce8e6; color: #c5221f; border: 1px solid #f5c2c7; display: block; }
+    .status.info { background: #e8f0fe; color: #1967d2; border: 1px solid #aecbfa; display: block; }
+    .status.success { background: #e6f4ea; color: #137333; border: 1px solid #a8dab5; display: block; }
+    .loading-overlay {
+      display: none; position: fixed; inset: 0; background: rgba(255,255,255,0.8); z-index: 1000;
+      justify-content: center; align-items: center; flex-direction: column; gap: 12px;
+    }
+    .loading-overlay.active { display: flex; }
+    .spinner {
+      width: 42px; height: 42px; border: 3px solid #eee; border-top-color: var(--primary);
+      border-radius: 50%; animation: spin 0.75s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    #loadingSteps { font-size: 0.9rem; color: var(--text-secondary); text-align: center; max-width: 320px; }
+    .results-header {
+      display: flex; justify-content: space-between; align-items: center;
+      margin-bottom: 10px; flex-wrap: wrap; gap: 10px;
+    }
+    .results-count { font-size: 0.9rem; color: var(--text-secondary); }
+    .auto-refresh-info { font-size: 0.8rem; color: var(--text-secondary); }
+    .table-wrapper {
+      background: var(--card); border-radius: 12px; box-shadow: 0 1px 2px rgba(0,0,0,0.06);
+      border: 1px solid var(--border); overflow: hidden;
+    }
+    .table-scroll { overflow-x: auto; max-height: 72vh; }
+    table { width: 100%; border-collapse: collapse; font-size: 0.82rem; min-width: 960px; table-layout: auto; }
+    table.mode-rising { min-width: 1480px; }
+    thead { position: sticky; top: 0; z-index: 10; background: #f1f3f4; }
+    th {
+      padding: 8px 7px; text-align: left; font-weight: 600; color: var(--text-secondary);
+      border-bottom: 2px solid var(--border); white-space: nowrap; cursor: pointer; user-select: none; font-size: 0.76rem;
+    }
+    th:hover { background: #e8eaed; }
+    th.active .sort-icon { opacity: 1; color: var(--primary); }
+    th .sort-icon { margin-left: 2px; opacity: 0.35; font-size: 0.68rem; }
+    td { padding: 6px 7px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+    tbody tr:hover { background: var(--hover); }
+    .thumb { width: 96px; height: 54px; object-fit: cover; border-radius: 5px; background: #eee; display: block; }
+    .title-link {
+      color: var(--text); text-decoration: none; font-weight: 600; display: -webkit-box;
+      -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; max-width: 340px;
+      line-height: 1.3; font-size: 0.84rem;
+    }
+    .title-link:hover { color: var(--primary); }
+    .channel-name {
+      color: var(--text-secondary); font-size: 0.78rem; max-width: 130px;
+      display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    }
+    .num { font-variant-numeric: tabular-nums; text-align: right; white-space: nowrap; }
+    th.num, td.num { width: 1%; } /* 숫자 열을 내용 너비에 맞게 압축 */
+    /* AI 분석 열을 오른쪽에 고정해 가로 스크롤해도 항상 보이게 */
+    th.col-ai, td.col-ai {
+      position: sticky;
+      right: 0;
+      background: #fff;
+      box-shadow: -4px 0 8px rgba(0,0,0,0.06);
+      z-index: 5;
+      width: 92px;
+      text-align: center;
+    }
+    thead th.col-ai {
+      background: #f1f3f4;
+      z-index: 12;
+    }
+    tbody tr:hover td.col-ai { background: var(--hover); }
+    .badge {
+      display: inline-block; padding: 2px 7px; border-radius: 999px;
+      font-size: 0.72rem; font-weight: 700; white-space: nowrap;
+    }
+    .badge-explode { background: #fce8e6; color: #c5221f; }
+    .badge-rising { background: #fef7e0; color: #b06000; }
+    .badge-up { background: #e8f0fe; color: #1967d2; }
+    .badge-normal { background: #f1f3f4; color: #5f6368; }
+    .real-val { color: var(--real); font-weight: 600; }
+    .est-val { color: var(--est); }
+    .no-data { color: #9aa0a6; font-style: italic; font-size: 0.78rem; }
+    .empty-state { text-align: center; padding: 50px 16px; color: var(--text-secondary); }
+    footer { margin-top: 18px; text-align: center; font-size: 0.75rem; color: var(--text-secondary); }
+    .tooltip { position: relative; cursor: help; border-bottom: 1px dashed var(--text-secondary); }
+    .tooltip .tip {
+      visibility: hidden; width: 280px; background: #202124; color: #fff; text-align: left;
+      border-radius: 8px; padding: 8px 10px; position: absolute; z-index: 20; bottom: 125%;
+      left: 50%; transform: translateX(-50%); font-size: 0.75rem; font-weight: 400;
+      line-height: 1.4; opacity: 0; transition: opacity 0.15s; pointer-events: none;
+    }
+    .tooltip:hover .tip { visibility: visible; opacity: 1; }
+
+    /* 무료 음원·효과음 가이드 */
+    .audio-guide { display: none; }
+    .audio-guide.active { display: block; }
+    .audio-section {
+      background: var(--card); border-radius: 12px; padding: 16px 18px; margin-bottom: 14px;
+      border: 1px solid var(--border); box-shadow: 0 1px 2px rgba(0,0,0,0.06);
+    }
+    .audio-section h2 { font-size: 1.05rem; margin-bottom: 8px; }
+    .audio-section h3 { font-size: 0.92rem; margin: 14px 0 8px; color: var(--text-secondary); }
+    .mood-grid {
+      display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 10px;
+    }
+    .mood-card {
+      border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px; background: #fafafa;
+      transition: border-color 0.15s, box-shadow 0.15s;
+    }
+    .mood-card:hover { border-color: #c5c5c5; box-shadow: 0 2px 8px rgba(0,0,0,0.06); }
+    .mood-card .mood-title { font-weight: 700; font-size: 0.9rem; margin-bottom: 4px; }
+    .mood-card .mood-desc { font-size: 0.78rem; color: var(--text-secondary); margin-bottom: 8px; line-height: 1.4; }
+    .mood-card .mood-keywords {
+      font-size: 0.75rem; background: #eef3ff; color: #1a56db; padding: 4px 8px;
+      border-radius: 6px; display: inline-block; word-break: break-all;
+    }
+    .sfx-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 8px; }
+    .sfx-item {
+      font-size: 0.82rem; padding: 8px 10px; border-radius: 8px; background: #f5f5f5;
+      border: 1px solid var(--border);
+    }
+    .sfx-item strong { display: block; margin-bottom: 2px; }
+    .sfx-item span { color: var(--text-secondary); font-size: 0.75rem; }
+    .link-row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+    .chip-link {
+      display: inline-flex; align-items: center; gap: 6px; padding: 8px 12px; border-radius: 8px;
+      background: #111; color: #fff; text-decoration: none; font-size: 0.82rem; font-weight: 600;
+    }
+    .chip-link.secondary { background: #e8eaed; color: var(--text); }
+    .chip-link:hover { opacity: 0.9; }
+
+    @media (max-width: 768px) {
+      body { padding: 8px; }
+      h1 { font-size: 1.15rem; }
+      .mode-tabs { width: 100%; }
+      .mode-tab { flex: 1; text-align: center; font-size: 0.8rem; padding: 8px 10px; }
+      .btn { width: 100%; }
+      .thumb { width: 90px; height: 50px; }
+      .title-link { max-width: 200px; }
+      .channel-name { max-width: 90px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>
+        <svg viewBox="0 0 24 24"><path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/></svg>
+        YT Scope · 유튜브 영상 분석기
+      </h1>
+      <div class="api-section">
+        <div class="form-group" style="flex:2;">
+          <label for="apiKey">YouTube Data API v3 키</label>
+          <input type="password" id="apiKey" placeholder="API 키 입력" autocomplete="off">
+        </div>
+        <button class="btn btn-secondary btn-sm" id="toggleKeyBtn" type="button">보이기</button>
+        <button class="btn btn-secondary btn-sm" id="saveKeyBtn" type="button">키 저장</button>
+      </div>
+      <p class="note">
+        Google Cloud Console에서 YouTube Data API v3를 활성화한 후 키를 발급받으세요.
+        <a href="https://console.cloud.google.com/apis/library/youtube.googleapis.com" target="_blank" rel="noopener">API 활성화</a>
+        · 키는 이 브라우저 localStorage에만 저장됩니다.
+      </p>
+    </header>
+
+    <div class="mode-tabs">
+      <button type="button" class="mode-tab active" data-mode="rising">급상승 영상</button>
+      <button type="button" class="mode-tab" data-mode="search">키워드 검색</button>
+      <button type="button" class="mode-tab" data-mode="audio">무료 음원·효과음</button>
+    </div>
+
+    <div class="controls" id="risingControls">
+      <div class="controls-row">
+        <div class="form-group" style="min-width:130px;">
+          <label for="risingPeriod">급상승 기간
+            <span class="tooltip">ⓘ
+              <span class="tip">선택한 기간은 ‘이 기간 안에 업로드된 영상’을 찾는 조건입니다. 시간당 조회수는 현재 누적 조회수를 업로드 후 경과시간으로 나눈 추정값입니다. 실제 최근 증가량은 이전 측정 기록이 있을 때만 계산됩니다.</span>
+            </span>
+          </label>
+          <select id="risingPeriod">
+            <option value="1h">최근 1시간</option>
+            <option value="24h" selected>최근 24시간</option>
+            <option value="3d">최근 3일</option>
+            <option value="5d">최근 5일</option>
+            <option value="7d">최근 7일</option>
+            <option value="30d">최근 1개월</option>
+            <option value="90d">최근 3개월</option>
+            <option value="180d">최근 6개월</option>
+            <option value="365d">최근 1년</option>
+          </select>
+        </div>
+        <div class="form-group" style="min-width:150px;">
+          <label for="langSelect">언어</label>
+          <select id="langSelect">
+            <option value="">전체</option>
+            <option value="ko" selected>한국어</option>
+            <option value="en">영어</option>
+            <option value="ja">일본어</option>
+            <option value="zh-Hans">중국어 간체</option>
+            <option value="zh-Hant">중국어 번체</option>
+            <option value="es">스페인어</option>
+            <option value="es-419">라틴아메리카 스페인어</option>
+            <option value="fr">프랑스어</option>
+          </select>
+        </div>
+        <div class="form-group" style="min-width:140px;">
+          <label for="regionSelect">지역</label>
+          <select id="regionSelect">
+            <option value="">전 세계/자동</option>
+            <option value="KR" selected>대한민국 (KR)</option>
+            <option value="US">미국 (US)</option>
+            <option value="GB">영국 (GB)</option>
+            <option value="JP">일본 (JP)</option>
+            <option value="TW">대만 (TW)</option>
+            <option value="HK">홍콩 (HK)</option>
+            <option value="ES">스페인 (ES)</option>
+            <option value="MX">멕시코 (MX)</option>
+            <option value="AR">아르헨티나 (AR)</option>
+            <option value="CO">콜롬비아 (CO)</option>
+            <option value="FR">프랑스 (FR)</option>
+            <option value="CA">캐나다 (CA)</option>
+          </select>
+        </div>
+        <div class="form-group" style="min-width:150px;">
+          <label for="risingCategory">카테고리</label>
+          <select id="risingCategory">
+            <option value="">전체</option>
+            <option value="25">시사·뉴스·정치</option>
+            <option value="23">유머·코미디</option>
+            <option value="24">엔터테인먼트</option>
+            <option value="10">음악</option>
+            <option value="20">게임</option>
+            <option value="1">영화·애니메이션</option>
+            <option value="26">패션·뷰티·하우투</option>
+            <option value="22">인물·브이로그</option>
+            <option value="27">교육</option>
+            <option value="28">과학·기술</option>
+            <option value="17">스포츠</option>
+            <option value="19">여행·이벤트</option>
+            <option value="2">자동차</option>
+            <option value="15">반려동물</option>
+            <option value="29">비영리·사회</option>
+          </select>
+        </div>
+        <button class="btn btn-primary" id="risingSearchBtn">급상승 탐색</button>
+        <button class="btn btn-outline btn-sm" id="remeasureBtn" disabled>지금 다시 측정</button>
+        <button class="btn btn-outline btn-sm" id="clearHistoryBtn">측정 기록 초기화</button>
+      </div>
+      <div class="controls-row">
+        <div class="form-group" style="min-width:110px;">
+          <label for="videoType">영상 유형</label>
+          <select id="videoType">
+            <option value="all">전체</option>
+            <option value="long">롱폼 (60초 초과)</option>
+            <option value="short">숏폼 (60초 이하)</option>
+          </select>
+        </div>
+        <div class="form-group" style="min-width:100px;">
+          <label for="minViews">최소 조회수</label>
+          <input type="number" id="minViews" placeholder="0" min="0" value="">
+        </div>
+        <div class="form-group" style="min-width:110px;">
+          <label for="minHourly">최소 시간당 조회</label>
+          <input type="number" id="minHourly" placeholder="0" min="0" value="">
+        </div>
+        <div class="form-group" style="min-width:100px;">
+          <label for="minScore">최소 급상승 점수</label>
+          <input type="number" id="minScore" placeholder="0" min="0" max="100" value="">
+        </div>
+        <div class="form-group" style="min-width:140px;">
+          <label for="sortBy">정렬 기준</label>
+          <select id="sortBy">
+            <option value="risingScore" selected>급상승 점수</option>
+            <option value="realDelta">실제 조회수 증가량</option>
+            <option value="realHourly">실제 시간당 증가량</option>
+            <option value="estHourly">추정 시간당 조회수</option>
+            <option value="estDaily">일평균 조회수</option>
+            <option value="viewCount">누적 조회수</option>
+            <option value="likeCount">좋아요 수</option>
+            <option value="likeRate">좋아요율</option>
+            <option value="commentRate">댓글 반응률</option>
+            <option value="ratio">구독자 대비 조회수</option>
+            <option value="publishedAt">업로드 날짜</option>
+          </select>
+        </div>
+        <div class="form-group" style="min-width:100px;">
+          <label for="sortOrder">방향</label>
+          <select id="sortOrder">
+            <option value="desc" selected>내림차순</option>
+            <option value="asc">오름차순</option>
+          </select>
+        </div>
+        <div class="form-group" style="min-width:120px;">
+          <label for="autoRefresh">자동 갱신</label>
+          <select id="autoRefresh">
+            <option value="0" selected>사용 안 함</option>
+            <option value="10">10분</option>
+            <option value="30">30분</option>
+            <option value="60">1시간</option>
+          </select>
+        </div>
+        <label style="display:flex;align-items:center;gap:6px;font-size:0.82rem;margin-top:18px;">
+          <input type="checkbox" id="onlyOutperform"> 구독자보다 조회수 높은 영상만
+        </label>
+        <label style="display:flex;align-items:center;gap:6px;font-size:0.82rem;margin-top:18px;">
+          <input type="checkbox" id="onlyHasReal"> 실제 증가량 있는 영상만
+        </label>
+        <button class="btn btn-success" id="exportBtn" disabled>엑셀 저장</button>
+      </div>
+      <p class="warn" id="risingWarn">
+        mostPopular 차트는 음악·영화·게임 등에 편중될 수 있으며, YouTube 공식 전체 급상승 목록이 아닙니다.
+        relevanceLanguage는 완벽한 언어 필터가 아니므로 다른 언어 영상이 섞일 수 있습니다.
+        시간당 조회수는 누적 조회수 ÷ 업로드 경과시간의 <strong>추정값</strong>입니다. 실제 최근 증가량은 이전 측정 기록이 있을 때만 표시됩니다.
+      </p>
+    </div>
+
+    <div class="controls" id="searchControls" style="display:none;">
+      <div class="controls-row">
+        <div class="form-group" style="flex:2;min-width:180px;">
+          <label for="keyword">검색어</label>
+          <input type="text" id="keyword" placeholder="예: 인공지능, 요리 레시피" enterkeyhint="search">
+        </div>
+        <div class="form-group" style="min-width:130px;">
+          <label for="searchLang">언어</label>
+          <select id="searchLang">
+            <option value="">전체</option>
+            <option value="ko" selected>한국어</option>
+            <option value="en">영어</option>
+            <option value="ja">일본어</option>
+            <option value="zh-Hans">중국어 간체</option>
+            <option value="zh-Hant">중국어 번체</option>
+            <option value="es-419">스페인어 (남미)</option>
+            <option value="es">스페인어 (스페인)</option>
+          </select>
+        </div>
+        <div class="form-group" style="min-width:130px;">
+          <label for="searchRegion">지역</label>
+          <select id="searchRegion">
+            <option value="">전 세계/자동</option>
+            <option value="KR" selected>대한민국 (KR)</option>
+            <option value="US">미국 (US)</option>
+            <option value="GB">영국 (GB)</option>
+            <option value="JP">일본 (JP)</option>
+            <option value="TW">대만 (TW)</option>
+            <option value="HK">홍콩 (HK)</option>
+            <option value="MX">멕시코 (MX) · 남미</option>
+            <option value="AR">아르헨티나 (AR)</option>
+            <option value="CO">콜롬비아 (CO)</option>
+            <option value="ES">스페인 (ES)</option>
+            <option value="FR">프랑스 (FR)</option>
+            <option value="CA">캐나다 (CA)</option>
+          </select>
+        </div>
+        <div class="form-group" style="min-width:150px;">
+          <label for="searchCategory">카테고리</label>
+          <select id="searchCategory">
+            <option value="">전체</option>
+            <option value="25">시사·뉴스·정치</option>
+            <option value="23">유머·코미디</option>
+            <option value="24">엔터테인먼트</option>
+            <option value="10">음악</option>
+            <option value="20">게임</option>
+            <option value="1">영화·애니메이션</option>
+            <option value="26">패션·뷰티·하우투</option>
+            <option value="22">인물·브이로그</option>
+            <option value="27">교육</option>
+            <option value="28">과학·기술</option>
+            <option value="17">스포츠</option>
+            <option value="19">여행·이벤트</option>
+            <option value="2">자동차</option>
+            <option value="15">반려동물</option>
+            <option value="29">비영리·사회</option>
+          </select>
+        </div>
+        <div class="form-group" style="min-width:120px;">
+          <label for="searchPeriod">업로드 기간</label>
+          <select id="searchPeriod">
+            <option value="all">전체</option>
+            <option value="24h">최근 24시간</option>
+            <option value="7d">최근 1주일</option>
+            <option value="30d">최근 1개월</option>
+            <option value="365d">최근 1년</option>
+          </select>
+        </div>
+        <div class="form-group" style="min-width:100px;">
+          <label for="searchVideoType">영상 유형</label>
+          <select id="searchVideoType">
+            <option value="all">전체</option>
+            <option value="long">롱폼</option>
+            <option value="short">숏폼</option>
+          </select>
+        </div>
+        <button class="btn btn-primary" id="keywordSearchBtn">검색</button>
+        <button class="btn btn-success" id="exportBtn2" disabled>엑셀 저장</button>
+      </div>
+      <p class="note" style="margin-top:6px;">언어·지역·카테고리는 검색 우선순위에 영향을 주며 완벽한 필터는 아닙니다. 스페인어(남미) 선택 시 지역을 멕시코 등으로 맞추면 남미 콘텐츠가 더 잘 나옵니다. 시사·정치는 News & Politics, 유머는 Comedy, 패션·뷰티는 Howto & Style 등 YouTube 공식 카테고리로 매핑됩니다.</p>
+    </div>
+
+    <!-- 무료 음원·효과음 가이드 -->
+    <div class="audio-guide" id="audioGuide">
+      <div class="audio-section">
+        <h2>YouTube 크리에이터용 무료 음원 · 효과음</h2>
+        <p class="note" style="margin:0 0 10px;">
+          YouTube Data API로는 Audio Library 음원을 일괄 다운로드할 수 없습니다.
+          아래는 <strong>공식 YouTube 오디오 라이브러리</strong>와 합법 무료 소스에서 분위기별로 찾기 쉽게 정리한 가이드입니다.
+          다운로드는 반드시 공식 페이지에서 진행하세요.
+        </p>
+        <div class="link-row">
+          <a class="chip-link" href="https://studio.youtube.com/channel/UC/music" target="_blank" rel="noopener">YouTube 스튜디오 오디오 라이브러리</a>
+          <a class="chip-link secondary" href="https://www.youtube.com/audiolibrary" target="_blank" rel="noopener">youtube.com/audiolibrary</a>
+          <a class="chip-link secondary" href="https://pixabay.com/music/" target="_blank" rel="noopener">Pixabay Music</a>
+          <a class="chip-link secondary" href="https://pixabay.com/sound-effects/" target="_blank" rel="noopener">Pixabay SFX</a>
+          <a class="chip-link secondary" href="https://freesound.org/" target="_blank" rel="noopener">Freesound (라이선스 확인)</a>
+        </div>
+      </div>
+
+      <div class="audio-section">
+        <h2>분위기별 무료 배경음악 (검색 키워드)</h2>
+        <p class="note" style="margin:0 0 12px;">Audio Library / Pixabay에서 아래 영어 키워드로 검색하면 비슷한 분위기의 트랙을 빠르게 찾을 수 있습니다. 필터에서 <strong>Attribution not required</strong>(저작자 표시 불필요)를 우선 선택하세요.</p>
+        <div class="mood-grid" id="moodGrid"></div>
+      </div>
+
+      <div class="audio-section">
+        <h2>자주 쓰는 효과음 (SFX)</h2>
+        <p class="note" style="margin:0 0 12px;">숏폼·브이로그·설명 영상에서 반복적으로 쓰이는 효과음입니다. Audio Library의 Sound effects 탭 또는 Pixabay SFX에서 검색하세요.</p>
+        <div class="sfx-list" id="sfxList"></div>
+      </div>
+
+      <div class="audio-section">
+        <h2>실전 팁</h2>
+        <ul style="font-size:0.85rem; line-height:1.7; padding-left:18px; color:var(--text-secondary);">
+          <li>인트로 3~5초: whoosh / pop / notification 으로 시선 집중</li>
+          <li>장면 전환: whoosh, swoosh, transition sweep</li>
+          <li>강조·반전: impact, hit, bass drop (짧은 버전)</li>
+          <li>브이로그 일상: soft ukulele, lo-fi, acoustic chill</li>
+          <li>정보·뉴스 톤: corporate, documentary, minimal piano</li>
+          <li>긴장·반전: dark ambient, suspense drone, ticking</li>
+          <li>엔딩 CTA: upbeat short stinger 또는 soft resolve</li>
+          <li>음량: 배경음악은 보통 -18 ~ -12 LUFS 근처, 보이스보다 작게</li>
+          <li>저작권: YouTube 오디오 라이브러리 트랙은 스튜디오에서 받은 라이선스 조건을 따름. 타 사이트는 트랙마다 라이선스가 다름</li>
+        </ul>
+      </div>
+    </div>
+
+    <div id="status" class="status"></div>
+
+    <div id="resultsArea">
+      <div class="results-header" id="resultsHeader" style="display:none;">
+        <div class="results-count" id="resultsCount"></div>
+        <div class="auto-refresh-info" id="autoRefreshInfo"></div>
+      </div>
+
+      <div class="table-wrapper">
+        <div class="table-scroll">
+          <table id="resultTable">
+            <thead id="tableHead"></thead>
+            <tbody id="resultBody">
+              <tr>
+                <td colspan="18">
+                  <div class="empty-state">
+                    <p>상단에서 모드를 선택하고 탐색/검색을 시작하세요.</p>
+                    <p style="font-size:0.85rem;margin-top:8px;">급상승 모드는 검색어 없이 조회수 속도가 빠른 후보 영상을 찾습니다.</p>
+                  </div>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <footer>
+      YT Scope · YouTube Data API v3 · 클라이언트 사이드 분석 · 공식 급상승 순위가 아닌 공개 데이터 기반 자체 점수 · Shorts와 롱폼 조회수 집계 방식이 다를 수 있음
+    </footer>
+  </div>
+
+  <div class="loading-overlay" id="loading">
+    <div class="spinner"></div>
+    <div id="loadingSteps">준비 중...</div>
+  </div>
+
+  <script>
+  const $ = (s) => document.querySelector(s);
+  const $$ = (s) => document.querySelectorAll(s);
+
+  function formatNumber(n) {
+    if (n == null || n === '' || isNaN(n)) return '—';
+    return Number(n).toLocaleString('ko-KR');
+  }
+  function formatRatio(r, digits = 1) {
+    if (r == null || isNaN(r)) return '—';
+    return r.toLocaleString('ko-KR', { minimumFractionDigits: digits, maximumFractionDigits: digits }) + '%';
+  }
+  function parseISODuration(iso) {
+    if (!iso) return 0;
+    const m = iso.match(/PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?/);
+    if (!m) return 0;
+    return (parseInt(m[1]||0)*3600) + (parseInt(m[2]||0)*60) + parseInt(m[3]||0);
+  }
+  function formatDuration(sec) {
+    if (sec == null) return '—';
+    const h = Math.floor(sec/3600), m = Math.floor((sec%3600)/60), s = sec%60;
+    if (h > 0) return `${h}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+    return `${m}:${String(s).padStart(2,'0')}`;
+  }
+  function formatDate(iso) {
+    if (!iso) return '—';
+    const d = new Date(iso);
+    return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
+  }
+  function formatAge(ms) {
+    if (ms == null || ms < 0) return '—';
+    const h = ms / 3600000;
+    if (h < 1) return Math.round(h * 60) + '분';
+    if (h < 48) return h.toFixed(1) + '시간';
+    const d = h / 24;
+    if (d < 30) return d.toFixed(1) + '일';
+    return (d/30).toFixed(1) + '개월';
+  }
+  function escapeHtml(str) {
+    if (!str) return '';
+    return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+  function getPublishedAfter(period) {
+    const map = {
+      '1h': 1*3600e3, '24h': 24*3600e3, '3d': 3*86400e3, '5d': 5*86400e3,
+      '7d': 7*86400e3, '30d': 30*86400e3, '90d': 90*86400e3, '180d': 180*86400e3, '365d': 365*86400e3
+    };
+    if (!map[period]) return null;
+    return new Date(Date.now() - map[period]).toISOString();
+  }
+
+  let mode = 'rising';
+  let allVideos = [];
+  let displayedVideos = [];
+  let isLoading = false;
+  let autoRefreshTimer = null;
+  let nextRefreshAt = null;
+
+  const HISTORY_KEY = 'yt_scope_history_v1';
+  const MAX_HISTORY_PER_VIDEO = 30;
+
+  function showLoading(stepText) {
+    $('#loadingSteps').textContent = stepText || '처리 중...';
+    $('#loading').classList.add('active');
+  }
+  function hideLoading() { $('#loading').classList.remove('active'); }
+  function showStatus(msg, type = 'info') {
+    const el = $('#status');
+    el.textContent = msg;
+    el.className = 'status ' + type;
+  }
+  function clearStatus() {
+    const el = $('#status');
+    el.textContent = '';
+    el.className = 'status';
+  }
+
+  function loadHistory() {
+    try { return JSON.parse(localStorage.getItem(HISTORY_KEY) || '{}'); }
+    catch { return {}; }
+  }
+  function saveHistory(hist) {
+    try { localStorage.setItem(HISTORY_KEY, JSON.stringify(hist)); } catch(e) { console.warn(e); }
+  }
+  function getLastRecord(videoId) {
+    const hist = loadHistory();
+    const list = hist[videoId];
+    if (!list || !list.length) return null;
+    return list[list.length - 1];
+  }
+  function pushRecord(videoId, viewCount, likeCount, commentCount) {
+    const hist = loadHistory();
+    if (!hist[videoId]) hist[videoId] = [];
+    hist[videoId].push({
+      videoId,
+      viewCount: viewCount ?? null,
+      likeCount: likeCount ?? null,
+      commentCount: commentCount ?? null,
+      checkedAt: new Date().toISOString()
+    });
+    if (hist[videoId].length > MAX_HISTORY_PER_VIDEO) {
+      hist[videoId] = hist[videoId].slice(-MAX_HISTORY_PER_VIDEO);
+    }
+    saveHistory(hist);
+  }
+  function clearAllHistory() {
+    if (!confirm('모든 영상의 측정 기록을 삭제할까요? 이 작업은 되돌릴 수 없습니다.')) return;
+    localStorage.removeItem(HISTORY_KEY);
+    showStatus('측정 기록이 초기화되었습니다. 다시 탐색하면 새로운 기준점이 생성됩니다.', 'success');
+    if (allVideos.length) {
+      allVideos = allVideos.map(enrichWithHistory);
+      applyFiltersAndSort();
+    }
+  }
+
+  async function youtubeFetch(endpoint, params) {
+    const key = $('#apiKey').value.trim();
+    if (!key) throw new Error('API 키를 입력해주세요.');
+    const url = new URL(`https://www.googleapis.com/youtube/v3/${endpoint}`);
+    params.key = key;
+    Object.entries(params).forEach(([k,v]) => {
+      if (v !== null && v !== undefined && v !== '') url.searchParams.set(k, v);
+    });
+    const res = await fetch(url.toString());
+    const data = await res.json();
+    if (data.error) {
+      const err = data.error;
+      let msg = err.message || '알 수 없는 API 오류';
+      if (err.errors && err.errors[0]) {
+        const reason = err.errors[0].reason;
+        if (reason === 'keyInvalid') msg = 'API 키가 유효하지 않습니다.';
+        else if (reason === 'quotaExceeded') msg = '일일 API 할당량을 초과했습니다. 내일 다시 시도하거나 새 프로젝트를 만드세요.';
+        else if (reason === 'accessNotConfigured') msg = 'YouTube Data API v3가 활성화되지 않았습니다.';
+      }
+      throw new Error(msg);
+    }
+    return data;
+  }
+
+  async function fetchMostPopular(regionCode, categoryId) {
+    const params = { part: 'snippet,statistics,contentDetails', chart: 'mostPopular', maxResults: 50 };
+    if (regionCode) params.regionCode = regionCode;
+    if (categoryId) params.videoCategoryId = categoryId;
+    const data = await youtubeFetch('videos', params);
+    return data.items || [];
+  }
+
+  async function fetchRecentHighViews(period, regionCode, relevanceLanguage, categoryId) {
+    const publishedAfter = getPublishedAfter(period);
+    const params = { part: 'snippet', type: 'video', order: 'viewCount', maxResults: 50 };
+    if (publishedAfter) params.publishedAfter = publishedAfter;
+    if (regionCode) params.regionCode = regionCode;
+    if (categoryId) params.videoCategoryId = categoryId;
+    if (relevanceLanguage) {
+      let lang = relevanceLanguage;
+      if (lang === 'es-419') lang = 'es';
+      if (lang === 'zh-Hans' || lang === 'zh-Hant') lang = 'zh';
+      params.relevanceLanguage = lang;
+    }
+    const data = await youtubeFetch('search', params);
+    return (data.items || []).filter(i => i.id && i.id.videoId);
+  }
+
+  async function getVideoDetails(ids) {
+    if (!ids.length) return [];
+    const chunks = [];
+    for (let i = 0; i < ids.length; i += 50) chunks.push(ids.slice(i, i+50));
+    let all = [];
+    for (const chunk of chunks) {
+      const data = await youtubeFetch('videos', { part: 'snippet,statistics,contentDetails', id: chunk.join(',') });
+      all = all.concat(data.items || []);
+    }
+    return all;
+  }
+
+  async function getChannelStats(channelIds) {
+    const unique = [...new Set(channelIds.filter(Boolean))];
+    if (!unique.length) return {};
+    const map = {};
+    for (let i = 0; i < unique.length; i += 50) {
+      const chunk = unique.slice(i, i+50);
+      const data = await youtubeFetch('channels', { part: 'statistics,snippet', id: chunk.join(',') });
+      (data.items || []).forEach(ch => {
+        map[ch.id] = {
+          subscriberCount: ch.statistics?.subscriberCount != null ? parseInt(ch.statistics.subscriberCount, 10) : null,
+          title: ch.snippet?.title || ''
+        };
+      });
+    }
+    return map;
+  }
+
+  function detectLanguage(snippet) {
+    const audio = snippet.defaultAudioLanguage || snippet.defaultLanguage;
+    if (audio) return audio;
+    return '언어 미확인';
+  }
+
+  function enrichWithHistory(v) {
+    const last = getLastRecord(v.id);
+    let realDelta = null;
+    let realHourly = null;
+    let measuredAt = null;
+    if (last && last.viewCount != null && v.viewCount != null) {
+      realDelta = v.viewCount - last.viewCount;
+      const intervalMs = Date.now() - new Date(last.checkedAt).getTime();
+      const intervalH = intervalMs / 3600000;
+      if (intervalH > 0.01) realHourly = realDelta / intervalH;
+      measuredAt = last.checkedAt;
+    }
+    return { ...v, realDelta, realHourly, prevMeasuredAt: measuredAt };
+  }
+
+  function processVideos(videoItems, channelMap) {
+    const now = Date.now();
+    return videoItems.map(v => {
+      const stats = v.statistics || {};
+      const content = v.contentDetails || {};
+      const snippet = v.snippet || {};
+      const channelId = snippet.channelId;
+      const ch = channelMap[channelId] || {};
+      const viewCount = stats.viewCount != null ? parseInt(stats.viewCount, 10) : null;
+      const likeCount = stats.likeCount != null ? parseInt(stats.likeCount, 10) : null;
+      const commentCount = stats.commentCount != null ? parseInt(stats.commentCount, 10) : null;
+      const subscriberCount = ch.subscriberCount;
+      const durationSec = parseISODuration(content.duration);
+      const publishedAt = snippet.publishedAt;
+      const ageMs = publishedAt ? (now - new Date(publishedAt).getTime()) : null;
+      const ageHours = ageMs != null && ageMs > 0 ? ageMs / 3600000 : null;
+      const ageDays = ageHours != null ? ageHours / 24 : null;
+      let ratio = null;
+      if (viewCount != null && subscriberCount != null && subscriberCount > 0) ratio = (viewCount / subscriberCount) * 100;
+      let likeRate = null;
+      if (viewCount != null && viewCount > 0 && likeCount != null) likeRate = (likeCount / viewCount) * 100;
+      let commentRate = null;
+      if (viewCount != null && viewCount > 0 && commentCount != null) commentRate = (commentCount / viewCount) * 100;
+      let estHourly = null;
+      if (viewCount != null && ageHours != null && ageHours > 0) estHourly = viewCount / ageHours;
+      let estDaily = null;
+      if (viewCount != null && ageDays != null && ageDays > 0) estDaily = viewCount / ageDays;
+      const description = (snippet.description || '').trim();
+      const tags = Array.isArray(snippet.tags) ? snippet.tags : [];
+      const detectedLang = detectLanguage(snippet);
+      return {
+        id: v.id,
+        title: snippet.title || '(제목 없음)',
+        channelTitle: snippet.channelTitle || ch.title || '(채널 없음)',
+        channelId,
+        thumbnail: snippet.thumbnails?.medium?.url || snippet.thumbnails?.default?.url || '',
+        viewCount, likeCount, commentCount, subscriberCount,
+        ratio, likeRate, commentRate,
+        publishedAt, durationSec,
+        durationText: formatDuration(durationSec),
+        ageMs, ageHours, ageDays,
+        estHourly, estDaily,
+        url: `https://www.youtube.com/watch?v=${v.id}`,
+        description, tags, detectedLang,
+        risingScore: null,
+        realDelta: null, realHourly: null, prevMeasuredAt: null
+      };
+    });
+  }
+
+  function computeRisingScores(list) {
+    if (!list.length) return list;
+    const hasReal = list.some(v => v.realHourly != null && !isNaN(v.realHourly));
+    function normalize(arr, key, higherBetter = true) {
+      const vals = arr.map(x => x[key]).filter(v => v != null && !isNaN(v));
+      if (!vals.length) return arr.map(() => 0);
+      const min = Math.min(...vals);
+      const max = Math.max(...vals);
+      const range = max - min || 1;
+      return arr.map(x => {
+        const v = x[key];
+        if (v == null || isNaN(v)) return 0;
+        let n = (v - min) / range;
+        if (!higherBetter) n = 1 - n;
+        return Math.max(0, Math.min(1, n));
+      });
+    }
+    const freshness = normalize(list, 'ageHours', false);
+    const nEstHourly = normalize(list, 'estHourly', true);
+    const nRatio = normalize(list, 'ratio', true);
+    const nLike = normalize(list, 'likeRate', true);
+    const nComment = normalize(list, 'commentRate', true);
+    const nRealHourly = hasReal ? normalize(list, 'realHourly', true) : null;
+    let wReal = hasReal ? 0.35 : 0;
+    let wEst = hasReal ? 0.25 : 0.25;
+    let wRatio = hasReal ? 0.20 : 0.20;
+    let wLike = hasReal ? 0.08 : 0.08;
+    let wComment = hasReal ? 0.05 : 0.05;
+    let wFresh = hasReal ? 0.07 : 0.07;
+    if (!hasReal) {
+      const sum = wEst + wRatio + wLike + wComment + wFresh;
+      wEst /= sum; wRatio /= sum; wLike /= sum; wComment /= sum; wFresh /= sum;
+    }
+    return list.map((v, i) => {
+      let score =
+        (nRealHourly ? nRealHourly[i] * wReal : 0) +
+        nEstHourly[i] * wEst +
+        nRatio[i] * wRatio +
+        nLike[i] * wLike +
+        nComment[i] * wComment +
+        freshness[i] * wFresh;
+      return { ...v, risingScore: Math.round(score * 1000) / 10 };
+    });
+  }
+
+  function scoreBadge(score) {
+    if (score == null) return '<span class="badge badge-normal">—</span>';
+    if (score >= 80) return `<span class="badge badge-explode">${score} · 폭발</span>`;
+    if (score >= 60) return `<span class="badge badge-rising">${score} · 급상승</span>`;
+    if (score >= 40) return `<span class="badge badge-up">${score} · 상승</span>`;
+    return `<span class="badge badge-normal">${score} · 일반</span>`;
+  }
+
+  function applyFiltersAndSort() {
+    const type = mode === 'rising' ? $('#videoType').value : $('#searchVideoType').value;
+    const sortBy = $('#sortBy').value;
+    const sortOrder = $('#sortOrder').value;
+    const minViews = parseFloat($('#minViews')?.value) || 0;
+    const minHourly = parseFloat($('#minHourly')?.value) || 0;
+    const minScore = parseFloat($('#minScore')?.value) || 0;
+    const onlyOut = $('#onlyOutperform')?.checked;
+    const onlyReal = $('#onlyHasReal')?.checked;
+    let list = [...allVideos];
+    if (type === 'long') list = list.filter(v => v.durationSec > 60);
+    else if (type === 'short') list = list.filter(v => v.durationSec <= 60);
+    if (minViews > 0) list = list.filter(v => (v.viewCount || 0) >= minViews);
+    if (minHourly > 0) list = list.filter(v => (v.estHourly || 0) >= minHourly);
+    if (minScore > 0) list = list.filter(v => (v.risingScore || 0) >= minScore);
+    if (onlyOut) list = list.filter(v => v.viewCount != null && v.subscriberCount != null && v.viewCount > v.subscriberCount);
+    if (onlyReal) list = list.filter(v => v.realDelta != null);
+    list.sort((a, b) => {
+      let va = a[sortBy], vb = b[sortBy];
+      if (va == null && vb == null) return 0;
+      if (va == null) return 1;
+      if (vb == null) return -1;
+      if (sortBy === 'publishedAt') {
+        va = new Date(va).getTime();
+        vb = new Date(vb).getTime();
+      }
+      if (typeof va === 'string') return sortOrder === 'asc' ? va.localeCompare(vb) : vb.localeCompare(va);
+      return sortOrder === 'asc' ? va - vb : vb - va;
+    });
+    displayedVideos = list;
+    renderTable();
+  }
+
+  function renderTableHead() {
+    const isRising = mode === 'rising';
+    const table = $('#resultTable');
+    if (table) {
+      table.classList.toggle('mode-rising', isRising);
+    }
+    $('#tableHead').innerHTML = `
+      <tr>
+        <th style="width:104px;">썸네일</th>
+        <th style="min-width:200px;">제목</th>
+        <th style="width:120px;">채널</th>
+        ${isRising ? '<th data-sort="risingScore" style="width:100px;">급상승 점수 <span class="sort-icon">↕</span></th>' : ''}
+        <th class="num" data-sort="viewCount">조회수 <span class="sort-icon">↕</span></th>
+        ${isRising ? `
+          <th class="num" data-sort="realDelta">실제 증가량 <span class="sort-icon">↕</span></th>
+          <th class="num" data-sort="realHourly">실제 시간당 <span class="sort-icon">↕</span></th>
+          <th class="num" data-sort="estHourly">추정 시간당 <span class="sort-icon">↕</span></th>
+          <th class="num" data-sort="estDaily">일평균 <span class="sort-icon">↕</span></th>
+        ` : ''}
+        <th class="num" data-sort="likeCount">좋아요 <span class="sort-icon">↕</span></th>
+        ${isRising ? `
+          <th class="num" data-sort="likeRate">좋아요율 <span class="sort-icon">↕</span></th>
+          <th class="num" data-sort="commentCount">댓글 <span class="sort-icon">↕</span></th>
+          <th class="num" data-sort="commentRate">댓글반응률 <span class="sort-icon">↕</span></th>
+        ` : ''}
+        <th class="num" data-sort="subscriberCount">구독자 <span class="sort-icon">↕</span></th>
+        <th class="num" data-sort="ratio">구독자대비% <span class="sort-icon">↕</span></th>
+        <th data-sort="publishedAt" style="width:118px;">업로드 <span class="sort-icon">↕</span></th>
+        ${isRising ? '<th style="width:72px;">경과시간</th><th style="width:80px;">감지언어</th>' : ''}
+        <th style="width:56px;">길이</th>
+        <th class="col-ai">AI 분석</th>
+      </tr>`;
+  }
+
+  function renderTable() {
+    renderTableHead();
+    const tbody = $('#resultBody');
+    const header = $('#resultsHeader');
+    const countEl = $('#resultsCount');
+    const exportBtns = [$('#exportBtn'), $('#exportBtn2')];
+    const colCount = mode === 'rising' ? 18 : 10;
+    if (!displayedVideos.length) {
+      tbody.innerHTML = `<tr><td colspan="${colCount}"><div class="empty-state"><p>조건에 맞는 영상이 없습니다.</p></div></td></tr>`;
+      header.style.display = 'none';
+      exportBtns.forEach(b => { if (b) b.disabled = true; });
+      return;
+    }
+    header.style.display = 'flex';
+    countEl.textContent = `총 ${displayedVideos.length}개 표시` + (allVideos.length !== displayedVideos.length ? ` (필터 전 ${allVideos.length}개)` : '');
+    exportBtns.forEach(b => { if (b) b.disabled = false; });
+    $$('th[data-sort]').forEach(th => {
+      th.classList.remove('active');
+      const icon = th.querySelector('.sort-icon');
+      if (icon) icon.textContent = '↕';
+    });
+    const activeTh = $(`th[data-sort="${$('#sortBy').value}"]`);
+    if (activeTh) {
+      activeTh.classList.add('active');
+      const icon = activeTh.querySelector('.sort-icon');
+      if (icon) icon.textContent = $('#sortOrder').value === 'asc' ? '↑' : '↓';
+    }
+    const isRising = mode === 'rising';
+    tbody.innerHTML = displayedVideos.map(v => {
+      const realDeltaHtml = v.realDelta != null
+        ? `<span class="real-val">${v.realDelta >= 0 ? '+' : ''}${formatNumber(v.realDelta)}</span>`
+        : `<span class="no-data">다음 측정부터 제공</span>`;
+      const realHourlyHtml = v.realHourly != null
+        ? `<span class="real-val">${v.realHourly >= 0 ? '+' : ''}${formatNumber(Math.round(v.realHourly))}/시간</span>`
+        : `<span class="no-data">—</span>`;
+      const estHourlyHtml = v.estHourly != null
+        ? `<span class="est-val">${formatNumber(Math.round(v.estHourly))}/시간</span>`
+        : '—';
+      const estDailyHtml = v.estDaily != null
+        ? `<span class="est-val">${formatNumber(Math.round(v.estDaily))}/일</span>`
+        : '—';
+      return `
+        <tr data-video-id="${v.id}">
+          <td>
+            <a href="${v.url}" target="_blank" rel="noopener">
+              <img class="thumb" src="${v.thumbnail}" alt="" loading="lazy" onerror="this.style.background='#ddd'">
+            </a>
+          </td>
+          <td>
+            <a class="title-link" href="${v.url}" target="_blank" rel="noopener" title="${escapeHtml(v.title)}">${escapeHtml(v.title)}</a>
+          </td>
+          <td><span class="channel-name">${escapeHtml(v.channelTitle)}</span></td>
+          ${isRising ? `<td>${scoreBadge(v.risingScore)}</td>` : ''}
+          <td class="num">${formatNumber(v.viewCount)}</td>
+          ${isRising ? `
+            <td class="num">${realDeltaHtml}</td>
+            <td class="num">${realHourlyHtml}</td>
+            <td class="num">${estHourlyHtml}</td>
+            <td class="num">${estDailyHtml}</td>
+          ` : ''}
+          <td class="num">${formatNumber(v.likeCount)}</td>
+          ${isRising ? `
+            <td class="num">${formatRatio(v.likeRate, 2)}</td>
+            <td class="num">${formatNumber(v.commentCount)}</td>
+            <td class="num">${formatRatio(v.commentRate, 3)}</td>
+          ` : ''}
+          <td class="num">${formatNumber(v.subscriberCount)}</td>
+          <td class="num">${formatRatio(v.ratio)}</td>
+          <td>${formatDate(v.publishedAt)}</td>
+          ${isRising ? `
+            <td>${formatAge(v.ageMs)}</td>
+            <td style="font-size:0.78rem;">${escapeHtml(v.detectedLang)}</td>
+          ` : ''}
+          <td>${v.durationText}</td>
+          <td class="col-ai">
+            <button type="button" class="btn-analyze" data-id="${v.id}">프롬프트 복사</button>
+          </td>
+        </tr>`;
+    }).join('');
+  }
+
+  async function doRisingSearch(isRemeasure = false) {
+    if (isLoading) return;
+    if (!$('#apiKey').value.trim()) {
+      showStatus('API 키를 입력해주세요.', 'error');
+      return;
+    }
+    isLoading = true;
+    $('#risingSearchBtn').disabled = true;
+    $('#remeasureBtn').disabled = true;
+    clearStatus();
+    try {
+      const period = $('#risingPeriod').value;
+      const region = $('#regionSelect').value;
+      const lang = $('#langSelect').value;
+      const categoryId = $('#risingCategory')?.value || '';
+      let videoItems = [];
+      if (isRemeasure && allVideos.length) {
+        showLoading('1/5 기존 영상 통계 다시 측정 중...');
+        const ids = allVideos.map(v => v.id);
+        videoItems = await getVideoDetails(ids);
+      } else {
+        showLoading('1/5 지역별 인기 영상(mostPopular) 수집 중...');
+        let popular = [];
+        try { popular = await fetchMostPopular(region || undefined, categoryId || undefined); }
+        catch (e) { console.warn('mostPopular 실패', e); }
+        showLoading('2/5 최근 업로드 고조회수 영상 검색 중...');
+        let searchItems = [];
+        try { searchItems = await fetchRecentHighViews(period, region || undefined, lang || undefined, categoryId || undefined); }
+        catch (e) {
+          console.warn('search 실패', e);
+          if (!popular.length) throw e;
+        }
+        showLoading('3/5 영상 상세 통계 확인 중...');
+        const searchIds = searchItems.map(i => i.id.videoId);
+        const fromSearch = searchIds.length ? await getVideoDetails(searchIds) : [];
+        const map = new Map();
+        [...popular, ...fromSearch].forEach(v => { if (v && v.id) map.set(v.id, v); });
+        videoItems = [...map.values()];
+      }
+      if (!videoItems.length) {
+        allVideos = [];
+        displayedVideos = [];
+        renderTable();
+        showStatus('조건에 맞는 영상을 찾지 못했습니다. 기간·지역·언어를 바꿔보세요.', 'info');
+        return;
+      }
+      showLoading('4/5 채널 구독자 수 확인 중...');
+      const channelIds = videoItems.map(v => v.snippet?.channelId).filter(Boolean);
+      const channelMap = await getChannelStats(channelIds);
+      showLoading('5/5 급상승 점수 계산 및 측정 기록 저장 중...');
+      let processed = processVideos(videoItems, channelMap);
+      processed = processed.map(v => {
+        const enriched = enrichWithHistory(v);
+        pushRecord(v.id, v.viewCount, v.likeCount, v.commentCount);
+        return enriched;
+      });
+      processed = computeRisingScores(processed);
+      allVideos = processed;
+      applyFiltersAndSort();
+      $('#remeasureBtn').disabled = false;
+      showStatus(`급상승 후보 ${allVideos.length}개 로드 완료. 점수는 공개 데이터 기반 자체 분석 점수입니다.`, 'success');
+      setTimeout(clearStatus, 4000);
+      scheduleAutoRefresh();
+    } catch (err) {
+      console.error(err);
+      showStatus(err.message || '오류가 발생했습니다.', 'error');
+    } finally {
+      isLoading = false;
+      hideLoading();
+      $('#risingSearchBtn').disabled = false;
+      if (allVideos.length) $('#remeasureBtn').disabled = false;
+    }
+  }
+
+  async function doKeywordSearch() {
+    if (isLoading) return;
+    const keyword = $('#keyword').value.trim();
+    if (!keyword) { showStatus('검색어를 입력해주세요.', 'error'); return; }
+    if (!$('#apiKey').value.trim()) { showStatus('API 키를 입력해주세요.', 'error'); return; }
+    isLoading = true;
+    $('#keywordSearchBtn').disabled = true;
+    clearStatus();
+    showLoading('영상 검색 중...');
+    try {
+      const period = $('#searchPeriod').value;
+      const lang = $('#searchLang')?.value || '';
+      const region = $('#searchRegion')?.value || '';
+      const categoryId = $('#searchCategory')?.value || '';
+      const params = { part: 'snippet', type: 'video', q: keyword, maxResults: 50, order: 'relevance' };
+      if (period !== 'all') {
+        const after = getPublishedAfter(period);
+        if (after) params.publishedAfter = after;
+      }
+      if (region) params.regionCode = region;
+      if (categoryId) params.videoCategoryId = categoryId;
+      if (lang) {
+        // API relevanceLanguage는 주로 2글자 코드. 남미 스페인어는 es로 전달
+        let rl = lang;
+        if (rl === 'es-419') rl = 'es';
+        if (rl === 'zh-Hans' || rl === 'zh-Hant') rl = 'zh';
+        params.relevanceLanguage = rl;
+      }
+      const searchData = await youtubeFetch('search', params);
+      const items = (searchData.items || []).filter(i => i.id && i.id.videoId);
+      if (!items.length) {
+        allVideos = []; displayedVideos = []; renderTable();
+        showStatus('검색 결과가 없습니다.', 'info');
+        return;
+      }
+      showLoading(`상세 정보 가져오는 중... (${items.length}개)`);
+      const ids = items.map(i => i.id.videoId);
+      const details = await getVideoDetails(ids);
+      const channelIds = details.map(v => v.snippet?.channelId).filter(Boolean);
+      showLoading('채널 정보 확인 중...');
+      const channelMap = await getChannelStats(channelIds);
+      let processed = processVideos(details, channelMap);
+      processed = processed.map(enrichWithHistory);
+      processed.forEach(v => pushRecord(v.id, v.viewCount, v.likeCount, v.commentCount));
+      processed = computeRisingScores(processed);
+      allVideos = processed;
+      applyFiltersAndSort();
+      showStatus(`검색 완료: ${allVideos.length}개`, 'success');
+      setTimeout(clearStatus, 3000);
+    } catch (err) {
+      console.error(err);
+      showStatus(err.message || '오류 발생', 'error');
+    } finally {
+      isLoading = false;
+      hideLoading();
+      $('#keywordSearchBtn').disabled = false;
+    }
+  }
+
+  function generateAnalysisPrompt(v) {
+    const descPreview = v.description
+      ? (v.description.length > 800 ? v.description.slice(0, 800) + '…' : v.description)
+      : '(설명 없음)';
+    const tagsStr = (v.tags && v.tags.length) ? v.tags.join(', ') : '(태그 없음)';
+    const ratioStr = v.ratio != null ? v.ratio.toFixed(1) + '%' : '계산 불가';
+    const realInfo = v.realDelta != null
+      ? `실제 조회수 증가량: ${v.realDelta >= 0 ? '+' : ''}${formatNumber(v.realDelta)} (이전 측정 대비)\n• 실제 시간당 증가량: ${v.realHourly != null ? formatNumber(Math.round(v.realHourly)) + '/시간' : '—'}`
+      : '실제 증가량 데이터: 없음 (이번이 첫 측정이거나 이전 기록 없음)';
+    return `당신은 유튜브 바이럴·성장 전략 전문 분석가입니다.
+아래 제공된 영상의 메타데이터만을 기반으로, 실제 대본이나 영상을 직접 보지 못했다는 점을 명확히 인지한 상태에서 분석해주세요.
+제목, 설명, 통계, 업로드 시점, 길이, 태그 등을 종합해 합리적으로 추론하고, 실행 가능한 구체적인 조언을 한국어로 매우 상세하게 작성해주세요.
+
+══════════════════════════════════════
+[영상 메타데이터]
+══════════════════════════════════════
+• 제목: ${v.title}
+• 채널명: ${v.channelTitle}
+• 영상 URL: ${v.url}
+• 조회수: ${formatNumber(v.viewCount)}
+• 좋아요 수: ${formatNumber(v.likeCount)}
+• 댓글 수: ${formatNumber(v.commentCount)}
+• 채널 구독자 수: ${formatNumber(v.subscriberCount)}
+• 구독자 대비 조회수 비율: ${ratioStr}
+• 좋아요율: ${formatRatio(v.likeRate, 2)}
+• 댓글 반응률: ${formatRatio(v.commentRate, 3)}
+• 업로드 날짜: ${formatDate(v.publishedAt)}
+• 영상 길이: ${v.durationText} (${v.durationSec}초)
+• 업로드 후 경과: ${formatAge(v.ageMs)}
+• 추정 시간당 조회수: ${v.estHourly != null ? formatNumber(Math.round(v.estHourly)) + '/시간' : '—'} (누적÷경과시간)
+• 추정 일평균 조회수: ${v.estDaily != null ? formatNumber(Math.round(v.estDaily)) + '/일' : '—'}
+• ${realInfo}
+• 급상승 점수(자체): ${v.risingScore != null ? v.risingScore : '—'} / 100
+• 감지 언어: ${v.detectedLang}
+• 태그: ${tagsStr}
+• 설명 (일부):
+${descPreview}
+
+※ 주의: 추정 시간당 조회수는 ‘현재 누적 조회수 ÷ 업로드 후 경과시간’입니다. 최근 1시간 실제 증가량이 아닙니다.
+실제 증가량은 이전 측정 기록이 있을 때만 제공됩니다.
+
+══════════════════════════════════════
+[요청하는 상세 분석 항목]
+══════════════════════════════════════
+
+1. 조회수 성과(또는 폭발) 이유 심층 분석
+   - 제목의 클릭 유도·SEO·호기심 갭, 썸네일 심리 추정, 타겟 니즈, 알고리즘 친화성, 업로드 시점·트렌드, 구독자 대비 효율 해석
+
+2. 대본·콘텐츠 구조 분석 및 유사 대본 제안
+   - 추정 구성, 시간대별 아웃라인, 훅 문장 예시, 시청 유지 기법
+
+3. 노출·알고리즘·배포 전략
+   - 제목 공식·예시, 썸네일 가이드, 설명/태그/카드/엔드스크린, 게시 전략
+
+4. 비슷한 영상을 내가 만들려면? (실전 로드맵)
+   - 단계별 프로세스, 차별화, 추천 제목 5개, 썸네일 컨셉 3개, 첫 15초 훅 예시, 구성표
+
+5. 추가 인사이트
+   - 강점·약점, 다음 콘텐츠 아이디어, 주의사항
+
+분석은 데이터와 일반적인 유튜브 성공 패턴에 근거해 논리적으로 작성하고, 추측인 부분은 추측임을 명시하세요.
+불릿포인트와 번호 목록을 활용해 가독성 높게, 바로 실행에 옮길 수 있는 수준으로 자세히 답변해주세요.`;
+  }
+
+  async function copyAnalysisPrompt(videoId) {
+    const v = displayedVideos.find(i => i.id === videoId) || allVideos.find(i => i.id === videoId);
+    if (!v) { showStatus('영상 정보를 찾을 수 없습니다.', 'error'); return; }
+    const prompt = generateAnalysisPrompt(v);
+    try {
+      await navigator.clipboard.writeText(prompt);
+      showStatus(`「${v.title.slice(0, 36)}${v.title.length > 36 ? '…' : ''}」 분석 프롬프트가 복사되었습니다.`, 'success');
+      setTimeout(clearStatus, 4500);
+    } catch {
+      const ta = document.createElement('textarea');
+      ta.value = prompt;
+      ta.style.position = 'fixed';
+      ta.style.left = '-9999px';
+      document.body.appendChild(ta);
+      ta.select();
+      try {
+        document.execCommand('copy');
+        showStatus('분석 프롬프트가 복사되었습니다.', 'success');
+        setTimeout(clearStatus, 4000);
+      } catch {
+        showStatus('복사 실패. 브라우저 권한을 확인하세요.', 'error');
+      }
+      document.body.removeChild(ta);
+    }
+  }
+
+  function exportToExcel() {
+    if (!displayedVideos.length) return;
+    const rows = displayedVideos.map((v, i) => ({
+      '순번': i + 1,
+      '제목': v.title,
+      '채널명': v.channelTitle,
+      '급상승점수': v.risingScore != null ? v.risingScore : '',
+      '조회수': v.viewCount ?? '',
+      '실제_증가량': v.realDelta ?? '',
+      '실제_시간당증가': v.realHourly != null ? Math.round(v.realHourly) : '',
+      '추정_시간당조회': v.estHourly != null ? Math.round(v.estHourly) : '',
+      '일평균조회': v.estDaily != null ? Math.round(v.estDaily) : '',
+      '좋아요': v.likeCount ?? '',
+      '좋아요율(%)': v.likeRate != null ? Math.round(v.likeRate * 100) / 100 : '',
+      '댓글수': v.commentCount ?? '',
+      '댓글반응률(%)': v.commentRate != null ? Math.round(v.commentRate * 1000) / 1000 : '',
+      '구독자수': v.subscriberCount ?? '',
+      '구독자대비조회(%)': v.ratio != null ? Math.round(v.ratio * 10) / 10 : '',
+      '업로드일시': formatDate(v.publishedAt),
+      '경과시간': formatAge(v.ageMs),
+      '영상길이': v.durationText,
+      '감지언어': v.detectedLang,
+      'URL': v.url,
+      '영상ID': v.id
+    }));
+    const hist = loadHistory();
+    const histRows = [];
+    displayedVideos.forEach(v => {
+      const list = hist[v.id] || [];
+      list.forEach(r => {
+        histRows.push({
+          '영상ID': r.videoId,
+          '제목': v.title,
+          '측정시각': formatDate(r.checkedAt),
+          '조회수': r.viewCount ?? '',
+          '좋아요': r.likeCount ?? '',
+          '댓글': r.commentCount ?? ''
+        });
+      });
+    });
+    const criteria = [
+      { '항목': '조회 시각', '내용': new Date().toLocaleString('ko-KR') },
+      { '항목': '모드', '내용': mode === 'rising' ? '급상승 영상' : '키워드 검색' },
+      { '항목': '선택 기간', '내용': mode === 'rising' ? $('#risingPeriod').value : $('#searchPeriod').value },
+      { '항목': '선택 언어', '내용': mode === 'rising' ? ($('#langSelect')?.value || '—') : ($('#searchLang')?.value || '—') },
+      { '항목': '선택 지역', '내용': mode === 'rising' ? ($('#regionSelect')?.value || '—') : ($('#searchRegion')?.value || '—') },
+      { '항목': '선택 카테고리', '내용': mode === 'rising' ? ($('#risingCategory')?.value || '전체') : ($('#searchCategory')?.value || '전체') },
+      { '항목': '급상승 점수 계산식', '내용': '정규화(min-max) 후 가중 합산. 실제 시간당 증가량 35%(있을 때), 추정 시간당 25%, 구독자대비 20%, 좋아요율 8%, 댓글반응률 5%, 신선도 7%. 실제값 없으면 나머지 비례 재분배. 0~100점.' },
+      { '항목': '실제값 vs 추정값', '내용': '실제 증가량 = 현재 조회수 − localStorage 이전 측정 조회수. 추정 시간당 = 현재 누적 조회수 ÷ 업로드 후 경과시간(시간). 추정값을 실제 최근 증가량처럼 표시하지 않음.' },
+      { '항목': 'API 데이터 한계', '내용': 'YouTube Data API는 최근 N시간 조회수 증가량을 직접 제공하지 않음. mostPopular은 분야 편중이 있을 수 있으며 공식 전체 급상승 목록이 아님. relevanceLanguage는 완벽한 언어 필터가 아님. Shorts와 롱폼 집계 방식이 다를 수 있음.' },
+      { '항목': '점수 고지', '내용': '공식 YouTube 급상승 순위가 아니라 공개 데이터로 계산한 자체 분석 점수입니다.' }
+    ];
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rows), '급상승 영상');
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(histRows.length ? histRows : [{ '안내': '측정 기록이 없습니다.' }]), '측정 기록');
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(criteria), '분석 기준');
+    const dateStr = new Date().toISOString().slice(0, 10);
+    XLSX.writeFile(wb, `YT_Scope_${mode}_${dateStr}.xlsx`);
+  }
+
+  function scheduleAutoRefresh() {
+    if (autoRefreshTimer) { clearInterval(autoRefreshTimer); autoRefreshTimer = null; }
+    const mins = parseInt($('#autoRefresh').value, 10) || 0;
+    if (mins <= 0 || mode !== 'rising') {
+      $('#autoRefreshInfo').textContent = '';
+      nextRefreshAt = null;
+      return;
+    }
+    nextRefreshAt = Date.now() + mins * 60 * 1000;
+    updateAutoRefreshInfo();
+    autoRefreshTimer = setInterval(() => {
+      if (isLoading) return;
+      if (Date.now() >= nextRefreshAt) {
+        doRisingSearch(true);
+        nextRefreshAt = Date.now() + mins * 60 * 1000;
+      }
+      updateAutoRefreshInfo();
+    }, 15000);
+  }
+
+  function updateAutoRefreshInfo() {
+    const el = $('#autoRefreshInfo');
+    if (!nextRefreshAt) { el.textContent = ''; return; }
+    const left = Math.max(0, nextRefreshAt - Date.now());
+    const m = Math.floor(left / 60000);
+    const s = Math.floor((left % 60000) / 1000);
+    el.textContent = `자동 재측정: ${m}분 ${s}초 후 (페이지를 열어 둔 상태에서만 동작)`;
+  }
+
+  const MOOD_CATALOG = [
+    { title: '밝고 경쾌 (Upbeat)', desc: '브이로그, 하이라이트, 인트로', keywords: 'upbeat, happy, cheerful, fun, positive' },
+    { title: '차분·힐링 (Chill / Lo-fi)', desc: '일상, 공부, ASMR 톤', keywords: 'lofi, chill, ambient, soft, relaxing' },
+    { title: '감성·서정 (Emotional)', desc: '스토리, 후기, 감동 장면', keywords: 'emotional, piano, cinematic soft, heartfelt' },
+    { title: '웅장·시네마틱 (Epic)', desc: '트레일러, 성과 공개, 반전', keywords: 'epic, cinematic, orchestral, trailer, dramatic' },
+    { title: '긴장·서스펜스 (Suspense)', desc: '미스터리, 반전 전, 공포 톤', keywords: 'suspense, tension, dark ambient, thriller' },
+    { title: '슬픔·우울 (Sad)', desc: '이별, 회고, 진지한 고백', keywords: 'sad, melancholic, slow piano, sorrow' },
+    { title: '비즈니스·뉴스 (Corporate)', desc: '정보, 시사, 설명 영상', keywords: 'corporate, documentary, news, minimal, clean' },
+    { title: '테크·미래 (Tech)', desc: 'IT, AI, 제품 리뷰', keywords: 'technology, futuristic, electronic, innovation' },
+    { title: '게임·액션 (Gaming)', desc: '하이라이트, 액션 클립', keywords: 'gaming, action, energetic electronic, battle' },
+    { title: '코미디·장난 (Quirky)', desc: '유머, 밈, 개그 숏폼', keywords: 'quirky, funny, playful, cartoon, comedy' },
+    { title: '로맨틱·달달 (Romantic)', desc: '커플, 감성 브이로그', keywords: 'romantic, sweet, acoustic guitar, warm' },
+    { title: '자연·여행 (Nature / Travel)', desc: '풍경, 여행 브이로그', keywords: 'nature, acoustic, folk, travel, organic' },
+    { title: '운동·동기부여 (Motivational)', desc: '헬스, 챌린지, 성공 스토리', keywords: 'motivational, inspirational, sports, powerful' },
+    { title: '키즈·귀여움 (Cute)', desc: '반려동물, 키즈, 숏폼', keywords: 'cute, playful, ukulele, children, bouncy' },
+    { title: '공포·다크 (Horror / Dark)', desc: '호러, 스릴러 편집', keywords: 'horror, dark, eerie, creepy, drone' },
+    { title: '파티·클럽 (Party)', desc: '댄스, 파티, 에너지 클립', keywords: 'party, dance, club, edm, energetic' },
+    { title: '재즈·카페 (Jazz / Cafe)', desc: '카페, 리뷰, 느긋한 톤', keywords: 'jazz, bossa nova, cafe, smooth' },
+    { title: '클래식·우아 (Classical)', desc: '고급, 예술, 진지한 연출', keywords: 'classical, elegant, strings, refined' }
+  ];
+
+  const SFX_CATALOG = [
+    { name: 'Whoosh / Swoosh', use: '장면 전환, 텍스트 등장' },
+    { name: 'Pop / Bubble', use: 'UI 클릭, 포인트 강조' },
+    { name: 'Click / Tap', use: '버튼, 체크, 리스트' },
+    { name: 'Notification / Ping', use: '알림, 새 정보 등장' },
+    { name: 'Impact / Hit', use: '반전, 강조, 컷 전환' },
+    { name: 'Bass Drop', use: '클라이맥스, 비포-애프터' },
+    { name: 'Riser / Build-up', use: '긴장 상승, 공개 직전' },
+    { name: 'Transition Sweep', use: '부드러운 장면 연결' },
+    { name: 'Glitch / Digital', use: '테크, 오류, 미래 톤' },
+    { name: 'Camera Shutter', use: '사진, 인증, 순간 포착' },
+    { name: 'Typewriter', use: '텍스트 타이핑 연출' },
+    { name: 'Clock / Ticking', use: '시간 압박, 카운트다운' },
+    { name: 'Heartbeat', use: '긴장, 감정 고조' },
+    { name: 'Crowd Cheer', use: '성공, 축하, 스포츠' },
+    { name: 'Laugh Track (짧게)', use: '코미디 포인트 (과용 주의)' },
+    { name: 'Record Scratch', use: '갑작스런 중단, 반전 개그' },
+    { name: 'Cash Register', use: '돈, 수익, 할인 언급' },
+    { name: 'Magic Chime', use: '팁 공개, 해결책 등장' },
+    { name: 'Soft Click / UI', use: '앱 화면, 튜토리얼' },
+    { name: 'Nature Ambience', use: '배경 깔기용 환경음' },
+    { name: 'City Ambience', use: '도심 브이로그 배경' },
+    { name: 'Wind / Air', use: '여백, 여운, 전환' },
+    { name: 'Page Flip', use: '챕터 전환, 리스트' },
+    { name: 'Success / Correct', use: '정답, 완료, 체크' }
+  ];
+
+  function renderAudioGuide() {
+    const moodEl = $('#moodGrid');
+    const sfxEl = $('#sfxList');
+    if (moodEl) {
+      moodEl.innerHTML = MOOD_CATALOG.map(m => `
+        <div class="mood-card">
+          <div class="mood-title">${m.title}</div>
+          <div class="mood-desc">${m.desc}</div>
+          <div class="mood-keywords">${m.keywords}</div>
+        </div>
+      `).join('');
+    }
+    if (sfxEl) {
+      sfxEl.innerHTML = SFX_CATALOG.map(s => `
+        <div class="sfx-item">
+          <strong>${s.name}</strong>
+          <span>${s.use}</span>
+        </div>
+      `).join('');
+    }
+  }
+
+  function setMode(newMode) {
+    mode = newMode;
+    $$('.mode-tab').forEach(t => t.classList.toggle('active', t.dataset.mode === mode));
+    $('#risingControls').style.display = mode === 'rising' ? 'block' : 'none';
+    $('#searchControls').style.display = mode === 'search' ? 'block' : 'none';
+    const audioGuide = $('#audioGuide');
+    const resultsArea = $('#resultsArea');
+    if (mode === 'audio') {
+      if (audioGuide) audioGuide.classList.add('active');
+      if (resultsArea) resultsArea.style.display = 'none';
+      renderAudioGuide();
+    } else {
+      if (audioGuide) audioGuide.classList.remove('active');
+      if (resultsArea) resultsArea.style.display = 'block';
+      if (mode === 'rising') $('#sortBy').value = 'risingScore';
+      else $('#sortBy').value = 'viewCount';
+      // 모드 전환 시 결과 초기화는 유지
+      allVideos = [];
+      displayedVideos = [];
+      renderTable();
+    }
+    clearStatus();
+    scheduleAutoRefresh();
+  }
+
+  const LANG_REGION_MAP = {
+    'ko': 'KR', 'en': 'US', 'ja': 'JP', 'zh-Hans': 'HK', 'zh-Hant': 'TW',
+    'es': 'ES', 'es-419': 'MX', 'fr': 'FR'
+  };
+
+  function init() {
+    const savedKey = localStorage.getItem('yt_analyzer_api_key');
+    if (savedKey) $('#apiKey').value = savedKey;
+    $('#saveKeyBtn').addEventListener('click', () => {
+      const key = $('#apiKey').value.trim();
+      if (key) {
+        localStorage.setItem('yt_analyzer_api_key', key);
+        showStatus('API 키가 저장되었습니다.', 'success');
+      } else {
+        localStorage.removeItem('yt_analyzer_api_key');
+        showStatus('저장된 키가 삭제되었습니다.', 'info');
+      }
+      setTimeout(clearStatus, 2000);
+    });
+    $('#toggleKeyBtn').addEventListener('click', () => {
+      const input = $('#apiKey');
+      if (input.type === 'password') { input.type = 'text'; $('#toggleKeyBtn').textContent = '숨기기'; }
+      else { input.type = 'password'; $('#toggleKeyBtn').textContent = '보이기'; }
+    });
+    $$('.mode-tab').forEach(tab => tab.addEventListener('click', () => setMode(tab.dataset.mode)));
+    $('#langSelect').addEventListener('change', () => {
+      const lang = $('#langSelect').value;
+      if (LANG_REGION_MAP[lang]) $('#regionSelect').value = LANG_REGION_MAP[lang];
+    });
+    // 키워드 검색 모드: 언어 선택 시 지역 자동 추천 (스페인어 남미 → MX)
+    $('#searchLang').addEventListener('change', () => {
+      const lang = $('#searchLang').value;
+      if (LANG_REGION_MAP[lang]) $('#searchRegion').value = LANG_REGION_MAP[lang];
+    });
+    $('#risingSearchBtn').addEventListener('click', () => doRisingSearch(false));
+    $('#remeasureBtn').addEventListener('click', () => doRisingSearch(true));
+    $('#clearHistoryBtn').addEventListener('click', clearAllHistory);
+    $('#keywordSearchBtn').addEventListener('click', doKeywordSearch);
+    $('#keyword').addEventListener('keydown', e => { if (e.key === 'Enter') doKeywordSearch(); });
+    ['videoType', 'sortBy', 'sortOrder', 'minViews', 'minHourly', 'minScore', 'onlyOutperform', 'onlyHasReal', 'searchVideoType'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) {
+        el.addEventListener('change', () => { if (allVideos.length) applyFiltersAndSort(); });
+        if (el.tagName === 'INPUT') el.addEventListener('input', () => { if (allVideos.length) applyFiltersAndSort(); });
+      }
+    });
+    $('#autoRefresh').addEventListener('change', scheduleAutoRefresh);
+    $('#resultTable').addEventListener('click', e => {
+      const th = e.target.closest('th[data-sort]');
+      if (th) {
+        const field = th.dataset.sort;
+        const current = $('#sortBy').value;
+        const orderSel = $('#sortOrder');
+        if (current === field) orderSel.value = orderSel.value === 'asc' ? 'desc' : 'asc';
+        else { $('#sortBy').value = field; orderSel.value = 'desc'; }
+        if (allVideos.length) applyFiltersAndSort();
+        return;
+      }
+      const btn = e.target.closest('.btn-analyze');
+      if (btn) { e.preventDefault(); copyAnalysisPrompt(btn.dataset.id); }
+    });
+    $('#exportBtn').addEventListener('click', exportToExcel);
+    $('#exportBtn2').addEventListener('click', exportToExcel);
+    renderTableHead();
+    setMode('rising');
+  }
+
+  document.addEventListener('DOMContentLoaded', init);
+  </script>
+</body>
+</html>
